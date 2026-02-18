@@ -14,7 +14,7 @@ CREATE TABLE price_snapshot
     id           UUID PRIMARY KEY,
     route_id     UUID                     NOT NULL,
     price        NUMERIC(10, 2)           NOT NULL CHECK ( price > 0 ),
-    currency     VARCHAR(3)               NOT NULL, CHECK ( currency = UPPER(currency) )
+    currency     VARCHAR(3)               NOT NULL CHECK ( currency = UPPER(currency) ),
     retrieved_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     is_anomaly   BOOLEAN                  NOT NULL DEFAULT FALSE,
     FOREIGN KEY (route_id) REFERENCES route (id) ON DELETE CASCADE
