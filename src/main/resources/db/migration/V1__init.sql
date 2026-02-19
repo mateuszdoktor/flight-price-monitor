@@ -22,4 +22,4 @@ CREATE TABLE price_snapshot
 
 CREATE INDEX idx_price_snapshot_route_id ON price_snapshot (route_id);
 CREATE INDEX idx_price_snapshot_retrieved_at ON price_snapshot (retrieved_at);
-CREATE INDEX idx_price_snapshot_anomalies ON price_snapshot (route_id) WHERE is_anomaly IS TRUE;
+CREATE INDEX idx_price_snapshot_anomalies ON price_snapshot (is_anomaly) WHERE is_anomaly IS TRUE;
