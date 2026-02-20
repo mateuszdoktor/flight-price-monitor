@@ -16,7 +16,7 @@ import java.util.UUID;
 @Setter
 @Entity
 @Table(name = "price_snapshot", indexes = {
-        @Index(name = "idx_price_snapshot_anomalies",
+        @Index(name = "idx_price_snapshot_is_anomaly",
                 columnList = "route_id"),
         @Index(name = "idx_price_snapshot_route_id",
                 columnList = "route_id"),

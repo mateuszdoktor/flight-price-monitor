@@ -1,0 +1,2 @@
+ALTER INDEX idx_price_snapshot_anomalies
+RENAME TO idx_price_snapshot_is_anomaly;
