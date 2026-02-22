@@ -1,5 +1,6 @@
 package com.flight_price_monitor.persistence.mapper;
 
+import com.flight_price_monitor.api.dto.CreateRouteRequest;
 import com.flight_price_monitor.api.dto.RouteResponse;
 import com.flight_price_monitor.domain.model.Route;
 import com.flight_price_monitor.persistence.entity.RouteEntity;
@@ -16,7 +17,7 @@ public interface RouteMapper {
     @Mapping(target = "active", constant = "true")
     @Mapping(target = "origin", qualifiedByName = "toUpper")
     @Mapping(target = "destination", qualifiedByName = "toUpper")
-    RouteEntity toEntity(RouteResponse response);
+    RouteEntity toEntity(CreateRouteRequest createRouteRequest);
 
     Route toDomain(RouteEntity entity);
 
