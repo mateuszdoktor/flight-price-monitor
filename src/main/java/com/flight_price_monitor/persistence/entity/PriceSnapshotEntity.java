@@ -4,14 +4,14 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 import org.hibernate.annotations.ColumnDefault;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+@Builder
 @Getter
 @Setter
 @Entity
@@ -22,6 +22,8 @@ import java.util.UUID;
                 columnList = "route_id"),
         @Index(name = "idx_price_snapshot_retrieved_at",
                 columnList = "retrieved_at")})
+@NoArgsConstructor
+@AllArgsConstructor
 public class PriceSnapshotEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
