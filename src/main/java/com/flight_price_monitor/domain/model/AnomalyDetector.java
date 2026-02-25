@@ -57,7 +57,7 @@ public final class AnomalyDetector {
         Objects.requireNonNull(mean, "Mean value is required");
         Objects.requireNonNull(stdDev, "Standard deviation value is required");
 
-        if (stdDev.equals(BigDecimal.ZERO)) return null;
+        if (stdDev.compareTo(BigDecimal.ZERO) == 0) return null;
         return currentPrice.subtract(mean).divide(stdDev, 4, RoundingMode.HALF_UP).doubleValue();
     }
 
