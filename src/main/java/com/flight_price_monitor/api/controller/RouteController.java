@@ -1,19 +1,27 @@
 package com.flight_price_monitor.api.controller;
 
+import java.net.URI;
+import java.util.List;
+import java.util.UUID;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+
 import com.flight_price_monitor.api.dto.CreateRouteRequest;
 import com.flight_price_monitor.api.dto.PriceSnapshotResponse;
 import com.flight_price_monitor.api.dto.RouteResponse;
 import com.flight_price_monitor.api.dto.RouteStatisticsResponse;
 import com.flight_price_monitor.application.AnomalyDetectionService;
 import com.flight_price_monitor.application.RouteService;
-import jakarta.validation.Valid;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
-import java.net.URI;
-import java.util.List;
-import java.util.UUID;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/routes")
@@ -47,7 +55,7 @@ public class RouteController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteRoute(@PathVariable UUID id) {
-        routeService.deleteRoute(id);
+        routeService.deactivateRoute(id);
         return ResponseEntity.noContent().build();
     }
 
