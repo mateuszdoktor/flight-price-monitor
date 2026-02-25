@@ -4,25 +4,39 @@ import com.flight_price_monitor.api.dto.CreateRouteRequest;
 import com.flight_price_monitor.api.dto.RouteResponse;
 import com.flight_price_monitor.domain.model.Route;
 import com.flight_price_monitor.persistence.entity.RouteEntity;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
-import org.mapstruct.Named;
+import org.springframework.stereotype.Component;
 
-@Mapper(componentModel = "spring")
-public interface RouteMapper {
-    RouteResponse toResponse(RouteEntity entity);
+@Component
+public class RouteMapper {
 
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "createdAt", ignore = true)
-    @Mapping(target = "active", constant = "true")
-    @Mapping(target = "origin", qualifiedByName = "toUpper")
-    @Mapping(target = "destination", qualifiedByName = "toUpper")
-    RouteEntity toEntity(CreateRouteRequest createRouteRequest);
+    public RouteResponse toResponse(RouteEntity entity) {
+        return new RouteResponse(
+                entity.getId(),
+                entity.getOrigin(),
+                entity.getDestination(),
+                entity.getDepartureDate(),
+                entity.getActive(),
+                entity.getCreatedAt()
+        );
+    }
 
-    Route toDomain(RouteEntity entity);
+    public RouteEntity toEntity(CreateRouteRequest request) {
+        RouteEntity entity = new RouteEntity();
+        entity.setOrigin(request.origin() != null ? request.origin().toUpperCase() : null);
+        entity.setDestination(request.destination() != null ? request.destination().toUpperCase() : null);
+        entity.setDepartureDate(request.departureDate());
+        entity.setActive(true);
+        return entity;
+    }
 
-    @Named("toUpper")
-    default String mapToUpperCase(String value) {
-        return value != null ? value.toUpperCase() : null;
+    public Route toDomain(RouteEntity entity) {
+        return new Route(
+                entity.getId(),
+                entity.getOrigin(),
+                entity.getDestination(),
+                entity.getDepartureDate(),
+                entity.getActive(),
+                entity.getCreatedAt()
+        );
     }
 }
