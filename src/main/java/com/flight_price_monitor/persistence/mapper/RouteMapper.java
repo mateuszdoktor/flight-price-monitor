@@ -1,10 +1,11 @@
 package com.flight_price_monitor.persistence.mapper;
 
+import org.springframework.stereotype.Component;
+
 import com.flight_price_monitor.api.dto.CreateRouteRequest;
 import com.flight_price_monitor.api.dto.RouteResponse;
 import com.flight_price_monitor.domain.model.Route;
 import com.flight_price_monitor.persistence.entity.RouteEntity;
-import org.springframework.stereotype.Component;
 
 @Component
 public class RouteMapper {
@@ -22,8 +23,8 @@ public class RouteMapper {
 
     public RouteEntity toEntity(CreateRouteRequest request) {
         RouteEntity entity = new RouteEntity();
-        entity.setOrigin(request.origin() != null ? request.origin().toUpperCase() : null);
-        entity.setDestination(request.destination() != null ? request.destination().toUpperCase() : null);
+        entity.setOrigin(request.origin().toUpperCase());
+        entity.setDestination(request.destination().toUpperCase());
         entity.setDepartureDate(request.departureDate());
         entity.setActive(true);
         return entity;
