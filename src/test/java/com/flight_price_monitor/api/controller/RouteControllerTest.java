@@ -1,12 +1,17 @@
 package com.flight_price_monitor.api.controller;
 
-import com.flight_price_monitor.api.dto.PriceSnapshotResponse;
-import com.flight_price_monitor.api.dto.RouteResponse;
-import com.flight_price_monitor.api.dto.RouteStatisticsResponse;
-import com.flight_price_monitor.application.AnomalyDetectionService;
-import com.flight_price_monitor.application.RouteService;
-import com.flight_price_monitor.common.exception.RouteNotFoundException;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.UUID;
+
 import org.junit.jupiter.api.Test;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.data.auditing.DateTimeProvider;
@@ -14,21 +19,21 @@ import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.OffsetDateTime;
-import java.util.List;
-import java.util.UUID;
-
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import com.flight_price_monitor.api.dto.PriceSnapshotResponse;
+import com.flight_price_monitor.api.dto.RouteResponse;
+import com.flight_price_monitor.api.dto.RouteStatisticsResponse;
+import com.flight_price_monitor.application.AnomalyDetectionService;
+import com.flight_price_monitor.application.RouteService;
+import com.flight_price_monitor.common.exception.RouteNotFoundException;
 
 @WebMvcTest(RouteController.class)
-@org.springframework.security.test.context.support.WithMockUser
 class RouteControllerTest {
 
     @Autowired
@@ -66,7 +71,6 @@ class RouteControllerTest {
                 """.formatted(FUTURE_DATE);
 
         mockMvc.perform(post("/routes")
-                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))
                 .andExpect(status().isCreated())
@@ -87,7 +91,6 @@ class RouteControllerTest {
                 """.formatted(FUTURE_DATE);
 
         mockMvc.perform(post("/routes")
-                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))
                 .andExpect(status().isBadRequest());
@@ -103,7 +106,6 @@ class RouteControllerTest {
                 """;
 
         mockMvc.perform(post("/routes")
-                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))
                 .andExpect(status().isBadRequest());
@@ -120,7 +122,6 @@ class RouteControllerTest {
                 """;
 
         mockMvc.perform(post("/routes")
-                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))
                 .andExpect(status().isBadRequest());
@@ -170,7 +171,7 @@ class RouteControllerTest {
         doNothing().when(routeService).deactivateRoute(id);
 
         mockMvc.perform(delete("/routes/{id}", id)
-                        .with(csrf()))
+                )
                 .andExpect(status().isNoContent());
 
         verify(routeService, times(1)).deactivateRoute(id);

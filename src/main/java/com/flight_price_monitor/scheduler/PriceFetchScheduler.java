@@ -1,9 +1,11 @@
 package com.flight_price_monitor.scheduler;
 
-import com.flight_price_monitor.application.PriceMonitoringService;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+
+import com.flight_price_monitor.application.PriceMonitoringService;
+
+import lombok.extern.slf4j.Slf4j;
 
 @Component
 @Slf4j
@@ -21,7 +23,7 @@ public class PriceFetchScheduler {
             priceMonitoringService.fetchPricesForAllActiveRoutes();
             log.info("Scheduled price fetch completed");
         } catch (Exception e) {
-            log.error(e.getMessage());
+            log.error("Scheduled price fetch failed", e);
         }
     }
 }

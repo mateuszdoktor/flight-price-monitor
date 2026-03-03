@@ -38,7 +38,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AmadeusApiException.class)
     public ResponseEntity<ErrorResponse> handleAmadeusApiError(AmadeusApiException ex) {
-        return buildResponse(HttpStatus.BAD_GATEWAY, ex.getMessage());
+        HttpStatus status = HttpStatus.resolve(ex.getStatusCode());
+        if (status == null) {
+            status = HttpStatus.BAD_GATEWAY;
+        }
+        return buildResponse(status, ex.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

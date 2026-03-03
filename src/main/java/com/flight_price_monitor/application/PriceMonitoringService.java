@@ -44,7 +44,7 @@ public class PriceMonitoringService {
                 fetchAndSavePrice(route);
                 successfulCount.incrementAndGet();
             } catch (Exception e) {
-                log.warn("Route error {}: {}", route.getId(), e.getMessage());
+                log.warn("Route {} failed during price fetch", route.getId(), e);
                 errorCount.incrementAndGet();
             }
         });
