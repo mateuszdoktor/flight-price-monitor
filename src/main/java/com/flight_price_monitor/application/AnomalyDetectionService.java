@@ -3,8 +3,11 @@ package com.flight_price_monitor.application;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,23 +47,49 @@ public class AnomalyDetectionService {
 
     @Transactional
     public void evaluateAnomaly(PriceSnapshotEntity snapshot) {
-        List<PriceSnapshotEntity> snapshots = snapshotRepository.findByRouteId(snapshot.getRoute().getId());
-        if (snapshots.size() < anomalyProperties.minSamples()) {
-            log.info("Not enough samples to evaluate anomaly, {} received, {} required", snapshots.size(), anomalyProperties.minSamples());
+        UUID routeId = snapshot.getRoute().getId();
+        List<BigDecimal> historicalPrices = snapshotRepository.findHistoricalPricesByRouteIdExcludingSnapshotId(
+                routeId,
+                snapshot.getId()
+        );
+        if (historicalPrices.size() < anomalyProperties.minSamples()) {
+            log.info(
+                    "Not enough historical samples to evaluate anomaly, routeId={}, {} received, {} required",
+                    routeId,
+                    historicalPrices.size(),
+                    anomalyProperties.minSamples()
+            );
             return;
         }
 
-        List<BigDecimal> prices = snapshots.stream().map(PriceSnapshotEntity::getPrice).toList();
-        PriceStatistics statistics = AnomalyDetector.buildStatistics(prices, snapshot.getPrice());
+        AnomalyEvaluation evaluation = evaluateAgainstHistory(historicalPrices, snapshot.getPrice());
+        boolean isAnomaly = evaluation.isAnomaly();
 
-        if (AnomalyDetector.isAnomalyByZScore(statistics.zScore(), anomalyProperties.zScoreThreshold())) {
-            snapshot.setIsAnomaly(true);
+        if (!Boolean.valueOf(isAnomaly).equals(snapshot.getIsAnomaly())) {
+            snapshot.setIsAnomaly(isAnomaly);
             snapshotRepository.save(snapshot);
-            log.info("Detected anomaly for price snapshot, id={}, price={}", snapshot.getId(), snapshot.getPrice());
+        }
+
+        if (isAnomaly) {
+            log.info(
+                    "Detected anomaly for snapshot id={}, routeId={}, price={}, zScore={}, dropPercentage={}%",
+                    snapshot.getId(),
+                    routeId,
+                    snapshot.getPrice(),
+                    evaluation.statistics().zScore(),
+                    evaluation.dropPercentage()
+            );
             return;
         }
 
-        log.info("Did not detect anomaly for price snapshot, id={}, price={}", snapshot.getId(), snapshot.getPrice());
+        log.info(
+                "Did not detect anomaly for snapshot id={}, routeId={}, price={}, zScore={}, dropPercentage={}%",
+                snapshot.getId(),
+                routeId,
+                snapshot.getPrice(),
+                evaluation.statistics().zScore(),
+                evaluation.dropPercentage()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -94,44 +123,41 @@ public class AnomalyDetectionService {
     @Transactional(readOnly = true)
     public List<DealResponse> getCurrentDeals() {
         List<RouteEntity> routes = routeRepository.findAllByActiveTrue();
+        if (routes.isEmpty()) {
+            return List.of();
+        }
+
+        List<UUID> routeIds = routes.stream().map(RouteEntity::getId).toList();
+        List<PriceSnapshotEntity> allSnapshots = snapshotRepository.findAllByRouteIdInOrderByRouteIdAndRetrievedAtDesc(routeIds);
+        Map<UUID, List<PriceSnapshotEntity>> snapshotsByRoute = allSnapshots.stream()
+            .collect(Collectors.groupingBy(snapshot -> snapshot.getRoute().getId(), LinkedHashMap::new, Collectors.toList()));
+
         return routes.stream().<DealResponse>mapMulti((route, consumer) -> {
-            List<PriceSnapshotEntity> snapshots = snapshotRepository.findByRouteId(route.getId());
-            if (snapshots.size() < anomalyProperties.minSamples()) {
+            List<PriceSnapshotEntity> routeSnapshots = snapshotsByRoute.get(route.getId());
+            if (routeSnapshots == null || routeSnapshots.isEmpty()) {
                 return;
             }
 
-            PriceSnapshotEntity latestSnapshot = snapshotRepository.findFirstByRouteIdOrderByRetrievedAtDesc(route.getId())
-                    .orElse(null);
-            if (latestSnapshot == null) {
+            PriceSnapshotEntity latestSnapshot = routeSnapshots.getFirst();
+            List<BigDecimal> historicalPrices = routeSnapshots.stream()
+                .skip(1)
+                .map(PriceSnapshotEntity::getPrice)
+                .toList();
+            if (historicalPrices.size() < anomalyProperties.minSamples()) {
                 return;
             }
 
-            BigDecimal currentPrice = latestSnapshot.getPrice();
-            List<BigDecimal> prices = snapshots.stream().map(PriceSnapshotEntity::getPrice).toList();
-            PriceStatistics statistics = AnomalyDetector.buildStatistics(prices, currentPrice);
+            AnomalyEvaluation evaluation = evaluateAgainstHistory(historicalPrices, latestSnapshot.getPrice());
 
-            BigDecimal dropPercentage = statistics.mean()
-                    .subtract(currentPrice)
-                    .divide(statistics.mean(), 4, RoundingMode.HALF_UP)
-                    .multiply(BigDecimal.valueOf(100));
-
-            boolean anomalyByZScore = AnomalyDetector.isAnomalyByZScore(
-                    statistics.zScore(),
-                    anomalyProperties.zScoreThreshold()
-            );
-            boolean anomalyByPercentage = dropPercentage.compareTo(
-                    BigDecimal.valueOf((1 - anomalyProperties.percentageThreshold()) * 100)
-            ) > 0;
-
-            if (anomalyByZScore || anomalyByPercentage) {
+            if (evaluation.isAnomaly()) {
                 consumer.accept(DealResponse.builder()
                         .routeId(route.getId())
                         .origin(route.getOrigin())
                         .destination(route.getDestination())
                         .departureDate(route.getDepartureDate())
-                        .currentPrice(statistics.currentPrice())
-                        .averagePrice(statistics.mean())
-                        .dropPercentage(dropPercentage)
+                .currentPrice(evaluation.statistics().currentPrice())
+                .averagePrice(evaluation.statistics().mean())
+                .dropPercentage(evaluation.dropPercentage())
                         .currency(latestSnapshot.getCurrency())
                         .retrievedAt(latestSnapshot.getRetrievedAt())
                         .build());
@@ -144,5 +170,32 @@ public class AnomalyDetectionService {
         routeRepository.findById(routeId).orElseThrow(() -> new RouteNotFoundException(routeId));
         List<PriceSnapshotEntity> snapshots = snapshotRepository.findByRouteIdOrderByRetrievedAtDesc(routeId);
         return snapshots.stream().map(priceSnapshotMapper::toResponse).toList();
+    }
+
+    private AnomalyEvaluation evaluateAgainstHistory(List<BigDecimal> historicalPrices, BigDecimal currentPrice) {
+        PriceStatistics statistics = AnomalyDetector.buildStatistics(historicalPrices, currentPrice);
+        BigDecimal dropPercentage = calculateDropPercentage(statistics.mean(), currentPrice);
+
+        boolean anomalyByZScore = AnomalyDetector.isAnomalyByZScore(
+                statistics.zScore(),
+                anomalyProperties.zScoreThreshold()
+        );
+        boolean anomalyByPercentage = AnomalyDetector.isAnomalyByPercentage(
+                currentPrice,
+                statistics.mean(),
+                anomalyProperties.percentageThreshold()
+        );
+
+        return new AnomalyEvaluation(statistics, dropPercentage, anomalyByZScore || anomalyByPercentage);
+    }
+
+    private BigDecimal calculateDropPercentage(BigDecimal mean, BigDecimal currentPrice) {
+        return mean
+                .subtract(currentPrice)
+                .divide(mean, 4, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100));
+    }
+
+    private record AnomalyEvaluation(PriceStatistics statistics, BigDecimal dropPercentage, boolean isAnomaly) {
     }
 }

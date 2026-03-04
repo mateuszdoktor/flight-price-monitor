@@ -34,12 +34,12 @@ import lombok.Setter;
 @Entity
 @EntityListeners(AuditingEntityListener.class)
 @Table(name = "price_snapshot", indexes = {
-        @Index(name = "idx_price_snapshot_is_anomaly",
-                columnList = "route_id"),
         @Index(name = "idx_price_snapshot_route_id",
                 columnList = "route_id"),
         @Index(name = "idx_price_snapshot_retrieved_at",
-                columnList = "retrieved_at")})
+                columnList = "retrieved_at"),
+        @Index(name = "idx_price_snapshot_is_anomaly",
+                columnList = "is_anomaly")})
 @NoArgsConstructor
 @AllArgsConstructor
 public class PriceSnapshotEntity {

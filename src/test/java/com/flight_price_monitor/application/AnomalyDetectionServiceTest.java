@@ -1,17 +1,5 @@
 package com.flight_price_monitor.application;
 
-import com.flight_price_monitor.config.AnomalyProperties;
-import com.flight_price_monitor.persistence.entity.PriceSnapshotEntity;
-import com.flight_price_monitor.persistence.entity.RouteEntity;
-import com.flight_price_monitor.persistence.mapper.PriceSnapshotMapper;
-import com.flight_price_monitor.persistence.repository.PriceSnapshotRepository;
-import com.flight_price_monitor.persistence.repository.RouteRepository;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -19,9 +7,28 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import com.flight_price_monitor.config.AnomalyProperties;
+import com.flight_price_monitor.persistence.entity.PriceSnapshotEntity;
+import com.flight_price_monitor.persistence.entity.RouteEntity;
+import com.flight_price_monitor.persistence.mapper.PriceSnapshotMapper;
+import com.flight_price_monitor.persistence.repository.PriceSnapshotRepository;
+import com.flight_price_monitor.persistence.repository.RouteRepository;
 
 @ExtendWith(MockitoExtension.class)
 class AnomalyDetectionServiceTest {
@@ -36,6 +43,7 @@ class AnomalyDetectionServiceTest {
     AnomalyProperties anomalyProperties;
 
     @Mock
+    @SuppressWarnings("unused")
     PriceSnapshotMapper priceSnapshotMapper;
 
     @InjectMocks
@@ -83,7 +91,9 @@ class AnomalyDetectionServiceTest {
 
         when(anomalyProperties.minSamples()).thenReturn(5);
         when(anomalyProperties.zScoreThreshold()).thenReturn(2.0);
-        when(snapshotRepository.findByRouteId(routeId)).thenReturn(fiveHistoricalSnapshots(route));
+        when(anomalyProperties.percentageThreshold()).thenReturn(0.7);
+        when(snapshotRepository.findHistoricalPricesByRouteIdExcludingSnapshotId(routeId, currentSnapshot.getId()))
+                .thenReturn(fiveHistoricalSnapshots(route).stream().map(PriceSnapshotEntity::getPrice).toList());
 
         anomalyDetectionService.evaluateAnomaly(currentSnapshot);
 
@@ -100,7 +110,9 @@ class AnomalyDetectionServiceTest {
 
         when(anomalyProperties.minSamples()).thenReturn(5);
         when(anomalyProperties.zScoreThreshold()).thenReturn(2.0);
-        when(snapshotRepository.findByRouteId(routeId)).thenReturn(fiveHistoricalSnapshots(route));
+        when(anomalyProperties.percentageThreshold()).thenReturn(0.7);
+        when(snapshotRepository.findHistoricalPricesByRouteIdExcludingSnapshotId(routeId, currentSnapshot.getId()))
+                .thenReturn(fiveHistoricalSnapshots(route).stream().map(PriceSnapshotEntity::getPrice).toList());
 
         anomalyDetectionService.evaluateAnomaly(currentSnapshot);
 
@@ -115,20 +127,41 @@ class AnomalyDetectionServiceTest {
 
         PriceSnapshotEntity currentSnapshot = buildSnapshot(route, new BigDecimal("50.00"));
 
-        List<PriceSnapshotEntity> tooFewSnapshots = List.of(
-                buildSnapshot(route, new BigDecimal("200.00")),
-                buildSnapshot(route, new BigDecimal("210.00")),
-                buildSnapshot(route, new BigDecimal("190.00"))
+        List<BigDecimal> tooFewHistoricalPrices = List.of(
+                new BigDecimal("200.00"),
+                new BigDecimal("210.00"),
+                new BigDecimal("190.00")
         );
 
         when(anomalyProperties.minSamples()).thenReturn(5);
-        when(snapshotRepository.findByRouteId(routeId)).thenReturn(tooFewSnapshots);
+        when(snapshotRepository.findHistoricalPricesByRouteIdExcludingSnapshotId(routeId, currentSnapshot.getId()))
+                .thenReturn(tooFewHistoricalPrices);
 
         anomalyDetectionService.evaluateAnomaly(currentSnapshot);
 
         assertFalse(currentSnapshot.getIsAnomaly(), "anomaly detection should be skipped with insufficient data");
         verify(snapshotRepository, never()).save(any());
         verify(anomalyProperties, never()).zScoreThreshold();
+        verify(anomalyProperties, never()).percentageThreshold();
+    }
+
+    @Test
+    void evaluateAnomaly_withPercentageDrop_detectsAnomaly() {
+        UUID routeId = UUID.randomUUID();
+        RouteEntity route = buildRoute(routeId);
+
+        PriceSnapshotEntity currentSnapshot = buildSnapshot(route, new BigDecimal("70.00"));
+
+        when(anomalyProperties.minSamples()).thenReturn(5);
+        when(anomalyProperties.zScoreThreshold()).thenReturn(10.0);
+        when(anomalyProperties.percentageThreshold()).thenReturn(0.7);
+        when(snapshotRepository.findHistoricalPricesByRouteIdExcludingSnapshotId(routeId, currentSnapshot.getId()))
+                .thenReturn(fiveHistoricalSnapshots(route).stream().map(PriceSnapshotEntity::getPrice).toList());
+
+        anomalyDetectionService.evaluateAnomaly(currentSnapshot);
+
+        assertTrue(currentSnapshot.getIsAnomaly(), "percentage-based drop should mark snapshot as anomaly");
+        verify(snapshotRepository, times(1)).save(currentSnapshot);
     }
 
     @Test
@@ -161,10 +194,11 @@ class AnomalyDetectionServiceTest {
         when(snapshotRepository.findByRouteId(routeId)).thenReturn(List.of());
         when(anomalyProperties.minSamples()).thenReturn(5);
 
-        assertThrows(
+        var exception = assertThrows(
                 com.flight_price_monitor.common.exception.InsufficientDataException.class,
                 () -> anomalyDetectionService.getStatistics(routeId)
         );
+        assertNotNull(exception);
     }
 
     @Test
@@ -172,13 +206,18 @@ class AnomalyDetectionServiceTest {
         UUID routeId = UUID.randomUUID();
         RouteEntity route = buildRoute(routeId);
 
-        List<PriceSnapshotEntity> snapshots = fiveHistoricalSnapshots(route);
         PriceSnapshotEntity latestSnapshot = buildSnapshot(route, new BigDecimal("50.00"));
+        List<PriceSnapshotEntity> allSnapshots = List.of(
+                latestSnapshot,
+                buildSnapshot(route, new BigDecimal("100.00")),
+                buildSnapshot(route, new BigDecimal("150.00")),
+                buildSnapshot(route, new BigDecimal("200.00")),
+                buildSnapshot(route, new BigDecimal("250.00")),
+                buildSnapshot(route, new BigDecimal("300.00"))
+        );
 
         when(routeRepository.findAllByActiveTrue()).thenReturn(List.of(route));
-        when(snapshotRepository.findByRouteId(routeId)).thenReturn(snapshots);
-        when(snapshotRepository.findFirstByRouteIdOrderByRetrievedAtDesc(routeId))
-                .thenReturn(Optional.of(latestSnapshot));
+        when(snapshotRepository.findAllByRouteIdInOrderByRouteIdAndRetrievedAtDesc(any())).thenReturn(allSnapshots);
         when(anomalyProperties.minSamples()).thenReturn(5);
         when(anomalyProperties.zScoreThreshold()).thenReturn(2.0);
         when(anomalyProperties.percentageThreshold()).thenReturn(0.7);
@@ -196,13 +235,18 @@ class AnomalyDetectionServiceTest {
         UUID routeId = UUID.randomUUID();
         RouteEntity route = buildRoute(routeId);
 
-        List<PriceSnapshotEntity> snapshots = fiveHistoricalSnapshots(route);
         PriceSnapshotEntity latestSnapshot = buildSnapshot(route, new BigDecimal("195.00"));
+        List<PriceSnapshotEntity> allSnapshots = List.of(
+                latestSnapshot,
+                buildSnapshot(route, new BigDecimal("100.00")),
+                buildSnapshot(route, new BigDecimal("150.00")),
+                buildSnapshot(route, new BigDecimal("200.00")),
+                buildSnapshot(route, new BigDecimal("250.00")),
+                buildSnapshot(route, new BigDecimal("300.00"))
+        );
 
         when(routeRepository.findAllByActiveTrue()).thenReturn(List.of(route));
-        when(snapshotRepository.findByRouteId(routeId)).thenReturn(snapshots);
-        when(snapshotRepository.findFirstByRouteIdOrderByRetrievedAtDesc(routeId))
-                .thenReturn(Optional.of(latestSnapshot));
+        when(snapshotRepository.findAllByRouteIdInOrderByRouteIdAndRetrievedAtDesc(any())).thenReturn(allSnapshots);
         when(anomalyProperties.minSamples()).thenReturn(5);
         when(anomalyProperties.zScoreThreshold()).thenReturn(2.0);
         when(anomalyProperties.percentageThreshold()).thenReturn(0.7);
