@@ -1,26 +1,46 @@
 package com.flight_price_monitor.infrastructure.amadeus;
 
-import com.flight_price_monitor.common.exception.AmadeusApiException;
-import com.flight_price_monitor.infrastructure.amadeus.dto.AmadeusTokenResponse;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
 
-import java.time.Duration;
+import com.flight_price_monitor.common.exception.AmadeusApiException;
+import com.flight_price_monitor.infrastructure.amadeus.dto.AmadeusTokenResponse;
+
+import reactor.core.publisher.Mono;
 
 @Component
 public class OAuthTokenProvider {
     private final AmadeusProperties amadeusProperties;
     private final WebClient webClient;
-    private final Mono<String> tokenCache;
+        private final Clock clock;
+
+        private String cachedToken;
+        private Instant cachedTokenValidUntil = Instant.EPOCH;
 
     public OAuthTokenProvider(WebClient webClient, AmadeusProperties amadeusProperties) {
+                this(webClient, amadeusProperties, Clock.systemUTC());
+        }
+
+        OAuthTokenProvider(WebClient webClient, AmadeusProperties amadeusProperties, Clock clock) {
         this.webClient = webClient;
         this.amadeusProperties = amadeusProperties;
-        this.tokenCache = webClient.post()
+                this.clock = clock;
+        }
+
+        public synchronized String getToken() {
+                Instant now = clock.instant();
+                if (cachedToken != null && now.isBefore(cachedTokenValidUntil)) {
+                        return cachedToken;
+                }
+
+                AmadeusTokenResponse tokenResponse = webClient.post()
                 .uri(amadeusProperties.getTokenUrl())
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData("grant_type", "client_credentials")
@@ -34,18 +54,18 @@ public class OAuthTokenProvider {
                                 )
                 )
                 .bodyToMono(AmadeusTokenResponse.class)
-                .cache(
-                        response -> Duration.ofSeconds(response.expiresIn() - 60),
-                        error -> Duration.ZERO,
-                        () -> Duration.ZERO
-                )
-                .map(AmadeusTokenResponse::accessToken)
                 .onErrorMap(e -> !(e instanceof AmadeusApiException),
-                        e -> new AmadeusApiException("Amadeus network error", e, 500));
-    }
+                        e -> new AmadeusApiException("Amadeus network error", e, 500))
+                .block();
 
-    public String getToken() {
-        return tokenCache.block();
+        if (tokenResponse == null) {
+            throw new AmadeusApiException("Empty token response from Amadeus", 502);
+        }
+
+        long cacheSeconds = Math.max(tokenResponse.expiresIn() - 60L, 0L);
+        cachedToken = tokenResponse.accessToken();
+        cachedTokenValidUntil = clock.instant().plus(Duration.ofSeconds(cacheSeconds));
+        return cachedToken;
     }
 
 }

@@ -1,9 +1,13 @@
 package com.flight_price_monitor.infrastructure.amadeus;
 
 import java.io.IOException;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
 
 import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,14 +26,47 @@ import reactor.netty.http.client.HttpClient;
 class OAuthTokenProviderTest {
 
     private MockWebServer mockWebServer;
+    private MutableClock mutableClock;
+
+    private static final class MutableClock extends Clock {
+        private Instant instant;
+        private final ZoneId zone;
+
+        private MutableClock(Instant instant, ZoneId zone) {
+            this.instant = instant;
+            this.zone = zone;
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return zone;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return new MutableClock(instant, zone);
+        }
+
+        @Override
+        public Instant instant() {
+            return instant;
+        }
+
+        private void advanceSeconds(long seconds) {
+            instant = instant.plusSeconds(seconds);
+        }
+    }
 
     @BeforeEach
+    @SuppressWarnings("unused")
     void setUp() throws IOException {
         mockWebServer = new MockWebServer();
         mockWebServer.start();
+        mutableClock = new MutableClock(Instant.parse("2026-01-01T00:00:00Z"), ZoneId.of("UTC"));
     }
 
     @AfterEach
+    @SuppressWarnings("unused")
     void tearDown() {
         try {
             mockWebServer.shutdown();
@@ -51,7 +88,7 @@ class OAuthTokenProviderTest {
 
         AmadeusProperties props = new AmadeusProperties("key", "secret", baseUrl);
         mockWebServer.enqueue(tokenResponse(expiresIn));
-        return new OAuthTokenProvider(webClient, props);
+        return new OAuthTokenProvider(webClient, props, mutableClock);
     }
 
     private MockResponse tokenResponse(int expiresIn) {
@@ -76,7 +113,9 @@ class OAuthTokenProviderTest {
 
         RecordedRequest request = mockWebServer.takeRequest();
         assertEquals("POST", request.getMethod());
-        assertTrue(request.getPath().contains("/v1/security/oauth2/token"));
+        String requestPath = request.getPath();
+        assertNotNull(requestPath);
+        assertTrue(requestPath.contains("/v1/security/oauth2/token"));
 
         String body = request.getBody().readUtf8();
         assertTrue(body.contains("grant_type=client_credentials"));
@@ -107,7 +146,7 @@ class OAuthTokenProviderTest {
         String first = provider.getToken();
         assertEquals("my-access-token", first);
 
-        Thread.sleep(1_200);
+        mutableClock.advanceSeconds(2);
 
         mockWebServer.enqueue(tokenResponse(1799));
         String second = provider.getToken();
@@ -136,8 +175,9 @@ class OAuthTokenProviderTest {
                 .addHeader("Content-Type", "application/json")
                 .setBody("{\"error\": \"Unauthorized\"}"));
 
-        OAuthTokenProvider provider = new OAuthTokenProvider(webClient, props);
+        OAuthTokenProvider provider = new OAuthTokenProvider(webClient, props, mutableClock);
 
-        assertThrows(AmadeusApiException.class, provider::getToken);
+        var exception = assertThrows(AmadeusApiException.class, provider::getToken);
+        assertNotNull(exception);
     }
 }

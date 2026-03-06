@@ -1,5 +1,27 @@
 package com.flight_price_monitor.application;
 
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.mockito.ArgumentMatchers.any;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import org.mockito.junit.jupiter.MockitoExtension;
+
 import com.flight_price_monitor.api.dto.CreateRouteRequest;
 import com.flight_price_monitor.api.dto.RouteResponse;
 import com.flight_price_monitor.common.exception.DuplicateRouteException;
@@ -7,21 +29,6 @@ import com.flight_price_monitor.common.exception.RouteNotFoundException;
 import com.flight_price_monitor.persistence.entity.RouteEntity;
 import com.flight_price_monitor.persistence.mapper.RouteMapper;
 import com.flight_price_monitor.persistence.repository.RouteRepository;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.time.LocalDate;
-import java.time.OffsetDateTime;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class RouteServiceTest {
@@ -81,7 +88,8 @@ class RouteServiceTest {
         when(routeRepository.findByOriginAndDestinationAndDepartureDate("KR", "BAH", FUTURE_DATE))
                 .thenReturn(Optional.of(existing));
 
-        assertThrows(DuplicateRouteException.class, () -> routeService.createRoute(request));
+        var exception = assertThrows(DuplicateRouteException.class, () -> routeService.createRoute(request));
+        assertNotNull(exception);
         verify(routeRepository, never()).save(any());
     }
 
@@ -125,20 +133,33 @@ class RouteServiceTest {
         UUID id = UUID.randomUUID();
 
         when(routeRepository.findById(id)).thenReturn(Optional.empty());
-        assertThrows(RouteNotFoundException.class, () -> routeService.getRoute(id));
+        var exception = assertThrows(RouteNotFoundException.class, () -> routeService.getRoute(id));
+        assertNotNull(exception);
     }
 
     @Test
-    void deleteRoute_existingId_deletesSuccessfully() {
+    void deactivateRoute_existingId_setsInactiveAndSaves() {
         UUID id = UUID.randomUUID();
         RouteEntity entity = buildRouteEntity(id, "KR", "BAH", true);
 
         when(routeRepository.findById(id)).thenReturn(Optional.of(entity));
-        doNothing().when(routeRepository).delete(entity);
 
-        routeService.deleteRoute(id);
+        routeService.deactivateRoute(id);
 
-        verify(routeRepository, times(1)).delete(entity);
+        assertFalse(entity.getActive());
+        verify(routeRepository, times(1)).save(entity);
+        verify(routeRepository, never()).delete(any());
+    }
+
+    @Test
+    void deactivateRoute_nonExistingId_throwsRouteNotFoundException() {
+        UUID id = UUID.randomUUID();
+
+        when(routeRepository.findById(id)).thenReturn(Optional.empty());
+
+        var exception = assertThrows(RouteNotFoundException.class, () -> routeService.deactivateRoute(id));
+        assertNotNull(exception);
+        verify(routeRepository, never()).save(any());
     }
 
     @Test
@@ -149,7 +170,7 @@ class RouteServiceTest {
 
         UUID id1 = UUID.randomUUID();
         RouteEntity entity1 = buildRouteEntity(id1, "KRK", "LHR", true);
-        RouteResponse expected1 = buildRouteResponse(id, "KRK", "LHR");
+        RouteResponse expected1 = buildRouteResponse(id1, "KRK", "LHR");
 
         when(routeRepository.findAll()).thenReturn(List.of(entity, entity1));
         when(routeMapper.toResponse(entity)).thenReturn(expected);
