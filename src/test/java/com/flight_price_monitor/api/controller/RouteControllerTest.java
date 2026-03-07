@@ -9,6 +9,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -165,7 +166,7 @@ class RouteControllerTest {
     }
 
     @Test
-    void deleteRoute_existingId_returns204() throws Exception {
+        void deactivateRoute_existingId_returns204() throws Exception {
         UUID id = UUID.randomUUID();
 
         doNothing().when(routeService).deactivateRoute(id);
@@ -176,6 +177,17 @@ class RouteControllerTest {
 
         verify(routeService, times(1)).deactivateRoute(id);
     }
+
+        @Test
+        void deactivateRoute_nonExistingId_returns404() throws Exception {
+                UUID id = UUID.randomUUID();
+
+                doThrow(new RouteNotFoundException(id)).when(routeService).deactivateRoute(id);
+
+                mockMvc.perform(delete("/routes/{id}", id))
+                                .andExpect(status().isNotFound())
+                                .andExpect(jsonPath("$.status").value(404));
+        }
 
     @Test
     void getPriceHistory_returns200WithList() throws Exception {

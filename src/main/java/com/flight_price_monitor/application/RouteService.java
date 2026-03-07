@@ -1,5 +1,13 @@
 package com.flight_price_monitor.application;
 
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.flight_price_monitor.api.dto.CreateRouteRequest;
 import com.flight_price_monitor.api.dto.RouteResponse;
 import com.flight_price_monitor.common.exception.DuplicateRouteException;
@@ -7,13 +15,6 @@ import com.flight_price_monitor.common.exception.RouteNotFoundException;
 import com.flight_price_monitor.persistence.entity.RouteEntity;
 import com.flight_price_monitor.persistence.mapper.RouteMapper;
 import com.flight_price_monitor.persistence.repository.RouteRepository;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDate;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
 
 @Service
 public class RouteService {
@@ -70,12 +71,6 @@ public class RouteService {
         RouteEntity foundRoute = routeRepository.findById(id)
                 .orElseThrow(() -> new RouteNotFoundException(id));
         return routeMapper.toResponse(foundRoute);
-    }
-
-    @Transactional
-    public void deleteRoute(UUID id) {
-        var foundRoute = routeRepository.findById(id).orElseThrow(() -> new RouteNotFoundException(id));
-        routeRepository.delete(foundRoute);
     }
 
     @Transactional

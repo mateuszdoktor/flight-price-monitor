@@ -53,8 +53,9 @@ public class RouteController {
         return ResponseEntity.ok(route);
     }
 
+    // DELETE performs soft-delete by deactivating a route.
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteRoute(@PathVariable UUID id) {
+    public ResponseEntity<Void> deactivateRoute(@PathVariable UUID id) {
         routeService.deactivateRoute(id);
         return ResponseEntity.noContent().build();
     }
