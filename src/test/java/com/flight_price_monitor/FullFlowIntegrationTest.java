@@ -1,10 +1,10 @@
 package com.flight_price_monitor;
 
-import com.flight_price_monitor.persistence.entity.PriceSnapshotEntity;
-import com.flight_price_monitor.persistence.entity.RouteEntity;
-import com.flight_price_monitor.persistence.repository.PriceSnapshotRepository;
-import com.flight_price_monitor.persistence.repository.RouteRepository;
-import com.fasterxml.jackson.databind.JsonNode;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.UUID;
+
+import static org.hamcrest.Matchers.greaterThan;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,20 +15,20 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.util.UUID;
-
-import static org.hamcrest.Matchers.greaterThan;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.flight_price_monitor.persistence.entity.PriceSnapshotEntity;
+import com.flight_price_monitor.persistence.entity.RouteEntity;
+import com.flight_price_monitor.persistence.repository.PriceSnapshotRepository;
+import com.flight_price_monitor.persistence.repository.RouteRepository;
 
 @SpringBootTest
 @AutoConfigureMockMvc
