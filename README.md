@@ -1,174 +1,121 @@
+<div align="center">
+
 # Flight Price Monitor
 
-A RESTful flight price anomaly detection system built with Spring Boot. The application tracks route prices via the Amadeus API, flags unusually cheap fares, and exposes a clean API for route management, historical data, statistics, and deal discovery.
+[![Java](https://img.shields.io/badge/Java-25-orange.svg)](https://www.oracle.com/java/)
+[![Spring Boot](https://img.shields.io/badge/Spring_Boot-4.0-6DB33F?style=flat&logo=spring-boot&logoColor=white)](https://spring.io/projects/spring-boot)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white)](https://www.docker.com/)
 
-## Features
+*A resilient REST API for automated flight price tracking, anomaly detection, and deal discovery.*
 
-- **Route Management** - Create, list, inspect, and deactivate monitored routes
-- **Scheduled Price Collection** - Background price fetching for all active routes (every 6 hours by default)
-- **Anomaly Detection** - Combined z-score and percentage-threshold detection
-- **Deals Endpoint** - Aggregated list of currently detected low-price opportunities
-- **Statistics Endpoint** - Mean, median, standard deviation, min/max, sample count, and z-score
-- **Resilience for External API** - Retry, circuit breaker, timeout, and fallback for Amadeus calls
-- **Integration Tests** - PostgreSQL Testcontainers-backed flow tests for API + persistence
-- **Developer Experience** - Dockerfile, docker-compose, and Swagger/OpenAPI out of the box
+</div>
+
+## About The Project
+
+This repository contains a RESTful backend service built to continuously monitor flight prices via the **Amadeus API**. By archiving historical pricing data on scheduled intervals, the system calculates statistical anomalies to immediately identify and flag unusually cheap flights.
+
+The project demonstrates a robust, enterprise-grade architecture using **Spring Boot 4.0**. It heavily emphasizes domain-driven design principles, external API resilience (circuit breakers, fallbacks), and comprehensive automated testing.
+
+### Key Highlights
+* **Hexagonal Architecture:** Strict decoupling of the REST API (adapters), external Amadeus integration (infrastructure), and core detection logic (domain).
+* **Intelligent Polling:** Automated Spring schedulers that fetch fresh market snapshots without manual intervention.
+* **Resilience Patterns:** OAuth token caching, exponential retries, and circuit breakers for external API calls.
+* **Reliable Persistence:** PostgreSQL database managed by Flyway migrations to ensure schema consistency alongside code.
+
+---
+
+## API Reference
+
+The service exposes a clean RESTful interface for managing routes and discovering deals. Full API documentation is available via **Swagger/OpenAPI** after application startup.
+
+### Core Endpoints
+
+| Method | Endpoint | Description |
+|:---|:---|:---|
+| `GET` | `/api/v1/routes` | View all actively monitored flight routes. |
+| `POST` | `/api/v1/routes` | Add a new origin/destination pair to the monitoring schedule. |
+| `DELETE` | `/api/v1/routes/{id}` | Deactivate monitoring for a specific route. |
+| `GET` | `/api/v1/deals` | Retrieve a list of currently detected price anomalies (low prices). |
+| `GET` | `/api/v1/statistics/{routeId}` | Get mean, median, standard deviation, and historical price data. |
+
+<details>
+<summary><b>Click to see Swagger UI information</b></summary>
+<br>
+
+Once the application is running, the interactive API documentation is automatically generated.
+You can explore all endpoints, request/response schemas, and test them directly in your browser at: 
+`http://localhost:8080/swagger-ui.html`
+
+</details>
+
+---
 
 ## Tech Stack
 
-### Backend
+* **Core:** Java 25, Spring Boot 4.0
+* **Data Layer:** PostgreSQL 16, Flyway, Spring Data JPA
+* **Integration:** Spring WebClient (Amadeus API)
+* **Testing:** JUnit 5, Mockito, Testcontainers
+* **DevOps:** Docker, Docker Compose, Maven Wrapper
 
-- **Java 25** with **Spring Boot 4.0**
-- **Spring Data JPA** with Hibernate & PostgreSQL
-- **Spring WebMVC** for REST API + **WebClient** for Amadeus integration
-- **Flyway** for database migrations
+---
 
-### Key Features & Libraries
+## Project Structure
 
-- **Bean Validation** for request validation
-- **SpringDoc OpenAPI** for interactive API documentation
-- **Resilience4j** (retry, circuit breaker, time limiter)
-- **Lombok** for boilerplate reduction
-- **Testcontainers** for integration testing against real PostgreSQL
+```text
+flight-price-monitor/
+├── src/main/java/com/flight_price_monitor/
+│   ├── api/             # REST Controllers, DTOs, Exception Handlers
+│   ├── application/     # Core Use Cases, Command/Query handlers
+│   ├── domain/          # Business entities, Anomaly detection algorithms
+│   ├── infrastructure/  # Amadeus WebClients, Circuit Breakers, External Adapters
+│   ├── persistence/     # JPA Entities, Repositories, Database Mappers
+│   └── scheduler/       # Cron jobs for background data polling
+├── src/main/resources/
+│   └── db/migration/    # Flyway SQL migrations (V1, V2...)
+├── docker-compose.yml   # Infrastructure provisioning (PostgreSQL)
+└── pom.xml              # Project dependencies and build config
+```
 
-### Architecture & Patterns
-
-- Layered architecture (Controller-Service-Repository)
-- DTO pattern with separate request/response models
-- Domain-level statistics/anomaly utility logic
-- Centralized exception handling with consistent error response model
-- Soft-delete route semantics via deactivation
-- Batch-oriented query path for deals to reduce N+1 issues
-
-### Testing
-
-- **JUnit 5** with **Mockito** for unit tests
-- **MockWebServer** for Amadeus client integration-style tests
-- **WebMvc tests** for controller and exception-handler contracts
-- **Full-flow integration tests** with Testcontainers PostgreSQL
+---
 
 ## Getting Started
 
 ### Prerequisites
+* **Java 25** installed on your local machine.
+* **Docker & Docker Compose** for running the database locally.
+* **Amadeus API Credentials** (Client ID and Secret).
 
-- Java 25+
-- Docker & Docker Compose
+### Installation & Setup
 
-### Running with Docker Compose
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/flight-price-monitor.git
+   cd flight-price-monitor
+   ```
 
-1. Clone the repository
+2. Start the local PostgreSQL database:
+   ```bash
+   docker compose up -d postgres
+   ```
 
-```bash
-git clone https://github.com/yourusername/flight-price-monitor.git
-cd flight-price-monitor
-```
+3. Configure your API keys in `src/main/resources/application.properties` or via environment variables:
+   ```properties
+   amadeus.api.key=YOUR_API_KEY
+   amadeus.api.secret=YOUR_API_SECRET
+   ```
 
-2. Start all services
+### Usage
 
-```bash
-docker compose up --build
-```
-
-3. Access the app and docs
-
-- API: http://localhost:8080
-- Swagger UI: http://localhost:8080/swagger-ui.html
-- OpenAPI JSON: http://localhost:8080/v3/api-docs
-
-4. Stop services
-
-```bash
-docker compose down
-```
-
-### Running Locally with Maven
-
-1. Start PostgreSQL (local or via compose)
-2. Export required environment variables
-
-```bash
-export DB_URL=jdbc:postgresql://localhost:5432/flight_price_monitor
-export DB_USERNAME=postgres
-export DB_PASSWORD=postgres
-export AMADEUS_API_KEY=your_api_key
-export AMADEUS_API_SECRET=your_api_secret
-```
-
-3. Run the application
-
+**Run the REST API:**
+Use the provided Maven wrapper to launch the application:
 ```bash
 ./mvnw spring-boot:run
 ```
+*Flyway will automatically apply database migrations on startup. Schedulers will begin polling Amadeus based on active routes.*
 
-## Environment Variables
-
-| Variable             | Description                                | Example                                                  |
-| -------------------- | ------------------------------------------ | -------------------------------------------------------- |
-| `DB_URL`             | PostgreSQL JDBC URL                        | `jdbc:postgresql://localhost:5432/flight_price_monitor` |
-| `DB_USERNAME`        | PostgreSQL username                        | `postgres`                                               |
-| `DB_PASSWORD`        | PostgreSQL password                        | `postgres`                                               |
-| `AMADEUS_API_KEY`    | Amadeus API client ID                      | `your_api_key`                                           |
-| `AMADEUS_API_SECRET` | Amadeus API client secret                  | `your_api_secret`                                        |
-
-## Runtime Configuration
-
-Core application properties:
-
-| Property                                              | Description                                              | Default              |
-| ----------------------------------------------------- | -------------------------------------------------------- | -------------------- |
-| `scheduler.price-fetch.interval-ms`                   | Price fetch interval                                     | `21600000` (6h)      |
-| `anomaly.min-samples`                                 | Minimum samples required before anomaly evaluation       | `5`                  |
-| `anomaly.z-score-threshold`                           | Z-score threshold for anomaly                            | `2.0`                |
-| `anomaly.percentage-threshold`                        | Percentage threshold for anomaly                         | `0.7`                |
-| `amadeus.resilience.retry-max-attempts`               | Retry attempts for Amadeus calls                         | `3`                  |
-| `amadeus.resilience.retry-wait-duration-ms`           | Delay between retries                                    | `200`                |
-| `amadeus.resilience.circuit-breaker-sliding-window-size` | Circuit breaker sliding window                        | `20`                 |
-| `amadeus.resilience.circuit-breaker-minimum-number-of-calls` | Minimum calls before breaker can open             | `10`                 |
-| `amadeus.resilience.circuit-breaker-failure-rate-threshold` | Failure rate threshold (%)                          | `50`                 |
-| `amadeus.resilience.circuit-breaker-wait-duration-ms` | Open-state wait duration                                 | `10000`              |
-| `amadeus.resilience.timeout-ms`                       | Request timeout budget                                   | `3000`               |
-| `amadeus.resilience.fallback-max-age-minutes`         | Max age of cached fallback price                         | `30`                 |
-
-## API Documentation
-
-- Swagger UI: `/swagger-ui.html`
-- OpenAPI JSON: `/v3/api-docs`
-
-## API Endpoints
-
-### Routes
-
-| Method | Endpoint                  | Description                               |
-| ------ | ------------------------- | ----------------------------------------- |
-| POST   | `/routes`                 | Create a new monitored route              |
-| GET    | `/routes`                 | List all routes                           |
-| GET    | `/routes/{id}`            | Get route details                         |
-| DELETE | `/routes/{id}`            | Soft-delete route (deactivate monitoring) |
-| GET    | `/routes/{id}/prices`     | Get route price history                   |
-| GET    | `/routes/{id}/statistics` | Get route price statistics                |
-
-### Deals
-
-| Method | Endpoint | Description                    |
-| ------ | -------- | ------------------------------ |
-| GET    | `/deals` | Get current detected flight deals |
-
-## Anomaly Detection Overview
-
-The system uses two complementary checks:
-
-1. **Z-Score Analysis** - Current price is compared to historical distribution
-2. **Percentage Threshold** - Current price must be below a configurable percentage of historical mean
-
-An anomaly is flagged when either condition is met and enough historical samples are available.
-
-## Integration Test Scope
-
-Current integration tests validate key API and persistence flows against real PostgreSQL (Testcontainers), including:
-
-- Route creation and lifecycle (including deactivation)
-- Deals and statistics behavior on persisted snapshots
-- Duplicate route conflict handling
-
-## License
-
-This project is for educational and portfolio purposes.
+**Run Integration Tests:**
+Execute the test suite (Testcontainers will automatically spin up a temporary database to verify API & persistence integrity):
+```bash
+./mvnw clean test
+```
